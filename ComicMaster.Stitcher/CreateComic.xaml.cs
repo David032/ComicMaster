@@ -4,7 +4,7 @@ namespace ComicMaster.Stitcher;
 
 public partial class CreateComic : ContentPage
 {
-    List<FileResult> selectedFiles;
+    List<FileResult> selectedFiles = new();
 
     public CreateComic()
     {
@@ -56,32 +56,53 @@ public partial class CreateComic : ContentPage
         return null;
     }
 
+    /// <summary>
+    /// 
+    /// </summary>
+    /// TODO: What happens if the process fails? Need to clean up the files
+    /// <param name="sender"></param>
+    /// <param name="e"></param>
     private void StitchComic_Clicked(object sender, EventArgs e)
     {
-
-        List<(string, string)> filesUsed = new List<(string, string)>();
+        List<(string, int)> filesUsed = new List<(string, int)>();
         string cacheDir = FileSystem.Current.CacheDirectory;
+        DirectoryInfo folder = Directory.CreateDirectory(cacheDir + "/ComicTemp");
+        string zipFolder = cacheDir + "/ComicTemp.zip";
 
-        ZipFile.CreateFromDirectory(cacheDir + "/ComicTemp", cacheDir + "/ComicTemp.zip");
+        ZipFile.CreateFromDirectory(folder.FullName, zipFolder);
 
-        foreach (var item in selectedFiles)
+        for (int i = 0; i < selectedFiles.Count; i++)
         {
-            File.Copy(item.FullPath, cacheDir + "/" + item.FileName);
-            string file = Path.Combine(cacheDir, item.FileName);
-            filesUsed.Add((file, item.FileName));
+            var image = selectedFiles[i];
+            string tempFilePath = cacheDir + "/" + i + Path.GetExtension(image.FullPath);
+            File.Copy(image.FullPath, tempFilePath);
+            filesUsed.Add((tempFilePath, i));
         }
 
-
+        //Create the zip folder
         using (FileStream tempComicZip = new FileStream(cacheDir + "/ComicTemp.zip", FileMode.Open))
         {
             using (ZipArchive archive = new ZipArchive(tempComicZip, ZipArchiveMode.Update))
             {
                 foreach (var item in filesUsed)
                 {
-                    ZipArchiveEntry file = archive.CreateEntryFromFile(item.Item1, item.Item2);
+                    ZipArchiveEntry file = archive.CreateEntryFromFile(item.Item1, item.Item2.ToString() + ".png");
                 }
             }
         }
 
+        //Delete copied images & temp folder
+        foreach (var item in filesUsed)
+        {
+            File.Delete(item.Item1);
+        }
+        filesUsed.Clear();
+
+        Directory.Delete(folder.FullName, true);
+
+        //Rename to cbz format
+        File.Move(zipFolder, zipFolder + ".cbz");
+
+        //Then hand over to new page for file naming, tagging, date, etc?
     }
 }
